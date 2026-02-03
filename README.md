@@ -10,16 +10,16 @@ This project is a solution for the homework assignments in Casey Muratori's [Per
 ## Usage
 
 ### Compilation
-Use `gcc` to build the executable:
+Use `Makefile` to build the executable:
 ```sh
-gcc disassembler.c arena.c itoa.c -o decode8086
+make all
 ```
 ### Run
 Provide the path to an 8086 binary file as an argument:
 ```sh
-./decode8086 <filename>
+bin/decode8086 <filename>
 ```
 ### Example:
 ```sh
-./decode8086 examples/listing_0037_single_register_mov
+bin/decode8086 examples/listing_0037_single_register_mov
 ```
