@@ -10,7 +10,6 @@ void write_file_header(i32 fd)
     write_string_fd(fd, FILE_HEADER);
 }
 
-
 void write_line(i32 fd, char *instr, char *dest, char *src)
 {
     write_string_fd(fd, instr);

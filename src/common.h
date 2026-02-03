@@ -14,7 +14,4 @@ typedef int16_t i16;
 typedef int32_t i32;
 typedef int64_t i64;
 
-
-size_t decode_bin_to_asm_16(i32 fd, u8 *buffer);
-
 #endif

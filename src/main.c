@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include "common.h" 
 #include "utils/io_utils.h"
+#include "decoder/decoder.h"
 
 int main(int argc, char **argv)
 {
