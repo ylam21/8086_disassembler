@@ -1,10 +1,9 @@
 #ifndef ARENA_H
 #define ARENA_H
 
-#include <unistd.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <stdint.h>
-
 
 typedef struct s_arena
 {

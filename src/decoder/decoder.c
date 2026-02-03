@@ -1,15 +1,4 @@
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include "arena.h"
-#include "itoa.h"
-
-typedef uint8_t u8;
-typedef uint16_t u16;
-typedef int32_t i32;
+#include "decoder.h"
 
 typedef enum 
 {
@@ -34,53 +23,7 @@ char *table_reg_w_zero[] = {"al", "cl", "dl", "bl", "ah", "ch", "dh", "bh"};
 char *table_reg_w_one[]  = {"ax", "cx", "dx", "bx", "sp", "bp", "si", "di"};
 char *table_rm_memmode[] = {"bx + si", "bx + di", "bp + si", "bp + di", "si", "di", "bp", "bx"};
 
-void write_string_fd(int fd, char *str);
-char *strjoin(t_arena *a, char *s1, char *s2);
 
-char *strjoin(t_arena *a, char *s1, char *s2)
-{
-    char *result;
-    size_t s1_len;
-    size_t s2_len;
-    size_t size;
-
-    s1_len = strlen(s1);
-    s2_len = strlen(s2);
-    size = s1_len + s2_len + 1;
-    result = arena_alloc(a, size);
-    if (!result)
-    {
-        printf("Error: Could not allocate memory to the arena\n");
-        return NULL;
-    }
-
-    strncpy(result, s1, s1_len);
-    strncpy(result + s1_len, s2, s2_len);
-    result[size - 1] = '\0';
-    
-    return result;
-}
-
-void write_header(int fd)
-{
-    char *header = "bits 16\n\n";
-    write_string_fd(fd, header);
-}
-
-void write_string_fd(int fd, char *str)
-{
-    write(fd, str, strlen(str));
-}
-
-void write_line(int fd, char *instr, char *dest, char *src)
-{
-    write_string_fd(fd, instr);
-    write_string_fd(fd, " ");
-    write_string_fd(fd, dest);
-    write_string_fd(fd, ", ");
-    write_string_fd(fd, src);
-    write_string_fd(fd, "\n");
-}
 
 char *decode_field_reg(u8 REG, u8 W)
 {
@@ -232,21 +175,26 @@ char *decode_field_rm(t_arena *a, u8 RM, u8 MOD, u8 W, u8 b3, u8 b4)
            Except when R/M = 110, then 16-bit displacement follows */ 
         if (RM == 0x6)
         {
+            /* Effective Address Calculation
+               DIRECT ADDRESS */
             return create_mem_operand_dir_add_disp_16(a, b3, b4);
         }
         else
         {
+            /* Effective Address Calculation */
             return create_mem_operand_disp_none(a, base, strlen(base));
         }
     }
     else if (MOD == 0x1)
     {
-        /* Memory Mode, 8-bit displacement follows */
+        /* Memory Mode, 8-bit displacement follows
+           Effective Address Calculation           */
         return create_mem_operand_disp_8(a, base, strlen(base), b3);
     }
     else if (MOD == 0x2)
     {
-        /* Memory Mode, 16-bit displacement follows */
+        /* Memory Mode, 16-bit displacement follows
+           Effective Address Calculation           */
         return create_mem_operand_disp_16(a, base, strlen(base), b3, b4);
     }
     else
@@ -673,7 +621,7 @@ size_t decode_mov_acctomem(int fd, u8 b1, u8 b2, u8 b3)
     }
 }
 
-size_t decode_bin_to_asm_16(int fd, u8 *buffer)
+size_t decode_bin_to_asm_16(i32 fd, u8 *buffer)
 {
     u8 byte = buffer[0];
     if ((byte & MASK_MS_6) == OPCODE_MOV_RMTOREG)
@@ -716,58 +664,3 @@ size_t decode_bin_to_asm_16(int fd, u8 *buffer)
 }
 
 
-int main(int argc, char **argv)
-{
-    if (argc != 2)
-    {
-        printf("Usage: ./a.out <filename>\n");
-        return 1;
-    }
-
-    const char *filename = argv[1];
-
-    int fd_in = open(filename, O_RDONLY);
-    if (fd_in == -1)
-    {
-        return 1;
-    }
-
-    u8 buffer[1024];
-    ssize_t read_bytes = read(fd_in, buffer, 1024);
-    close(fd_in);
-    if (read_bytes == -1)
-    {
-        printf("Error: read from file\n");
-        return 2;
-    }
-    buffer[read_bytes] = '\0';
-
-    printf("Read %lu bytes from %s\n", read_bytes, filename);
-
-    char const *filename_out = "out.asm";
-    int fd_out = open(filename_out, O_WRONLY | O_CREAT, 0777);
-    if (fd_out == -1)
-    {
-        printf("Error: Cannot create a file\n");
-        return 3;
-    }
-
-    write_header(fd_out);
-    if (read_bytes == 0)
-    {
-        printf("Nothing to decode\n");
-    }
-
-    size_t idx = 0;
-    size_t offset = 0;
-    while (idx < read_bytes)
-    {
-        offset = decode_bin_to_asm_16(fd_out, buffer + idx);
-        idx += offset;
-    }
-    close(fd_out);
-
-    printf("Finished writing to %s. Done.\n",filename_out);
-
-    return 0;
-}
