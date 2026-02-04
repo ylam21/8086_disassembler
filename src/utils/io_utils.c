@@ -1,29 +1,19 @@
 #include "io_utils.h"
 
-void write_string_fd(i32 fd, u8 *str)
-{
-    write(fd, str, strlen(str));
-}
-
 void write_file_header(i32 fd)
 {
-    write_string_fd(fd, FILE_HEADER);
+    write(fd, FILE_HEADER, strlen(FILE_HEADER));
 }
 
-void write_line_str(i32 fd, u8 *mnemonic, u8 *str)
+void write_fmt_line_no_operands(t_ctx *ctx, u8 *mnemonic)
 {
-    write_string_fd(fd, mnemonic);
-    write_string_fd(fd, " ");
-    write_string_fd(fd, str);
-    write_string_fd(fd, "\n");
+    u8 *line = strjoin_fmt(ctx->a, "%s", mnemonic);
+    write(ctx->fd, line, strlen(line));
 }
 
-void write_line(i32 fd, u8 *mnemonic, u8 *dest, u8 *src)
+void write_fmt_line(t_ctx *ctx, u8 *mnemonic, u8 *operands)
 {
-    write_string_fd(fd, mnemonic);
-    write_string_fd(fd, " ");
-    write_string_fd(fd, dest);
-    write_string_fd(fd, ", ");
-    write_string_fd(fd, src);
-    write_string_fd(fd, "\n");
+    u8 *line = strjoin_fmt(ctx->a, "%-7s %s", mnemonic, operands);
+    write(ctx->fd, line, strlen(line));
 }
+

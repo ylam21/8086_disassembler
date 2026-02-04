@@ -13,16 +13,22 @@ static size_t i32len(i32 x)
 	return (len);
 }
 
-u8 *strjoin(t_arena *a, u8 *s1, u8 *s2)
+u8 *strnjoin(t_arena *a, u8 *s1, u8 *s2, u64 n)
 {
     u8 *result;
     u64 s1_len;
     u64 s2_len;
     u64 size;
 
-    s1_len = strlen(s1);
+
     s2_len = strlen(s2);
-    size = s1_len + s2_len + 1;
+	if (n > s2_len)
+	{
+		return NULL;
+	}
+    s1_len = strlen(s1);
+
+    size = s1_len + n + 1;
     result = arena_alloc(a, size);
     if (!result)
     {
@@ -30,7 +36,7 @@ u8 *strjoin(t_arena *a, u8 *s1, u8 *s2)
     }
 
     strncpy(result, s1, s1_len);
-    strncpy(result + s1_len, s2, s2_len);
+    strncpy(result + s1_len, s2, n);
     result[size - 1] = '\0';
     
     return result;

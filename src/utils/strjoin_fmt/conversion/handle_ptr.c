@@ -1,0 +1,68 @@
+#include "conversion.h"
+
+static u8 *handle_hex_ptr(t_arena *a, va_list args, t_fmt_opt opt, u8 table[16])
+{
+    void *ptr = va_arg(args, void *);
+    u8 buffer[20];
+    u32 digit_count = 0;
+    u64 val = (u64)ptr;
+    u8 *str;
+
+    if (!ptr)
+    {
+        u8 size = strlen("(nil)");
+        str = arena_alloc(a, size + 1);
+        if (!str)
+        {
+            return NULL;
+        }
+        memcpy(str, "(nil)", size);
+        str[size] = '\0';
+        return str;
+    }
+
+    if (val == 0)
+    {
+        buffer[digit_count] = '0';
+        digit_count++;
+    }
+    else
+    {
+        while (val)
+        {
+            buffer[digit_count++] = table[val & 0xF];
+            val >>= 4;
+        }
+    }
+
+    str = arena_alloc(a, digit_count + 3);
+    if (!str)
+    {
+        return NULL;
+    }
+    
+    str[0] = '0';
+    str[1] = 'x';
+
+    u32 i = 0;
+    while (i < digit_count)
+    {
+        str[2 + i] = buffer[digit_count - 1 - i];
+        i++;
+    }
+    str[2 + digit_count] = '\0';
+
+    if (opt.width > 0)
+    {
+        return apply_padding(a, str, opt);
+    }
+    else
+    {
+        return str;
+    }
+}
+
+u8 *handle_ptr(t_arena *a, va_list args, t_fmt_opt opt)
+{
+    return handle_hex_ptr(a, args, opt, (u8 *)"0123456789abcdef");
+}

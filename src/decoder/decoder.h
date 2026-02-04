@@ -16,6 +16,6 @@ u8 handle_daa_das_aaa_aas(t_ctx *ctx);
 u8 handle_cbw_cwd_wait_pushf_popf_sahf_lahf(t_ctx *ctx);
 u8 inc_dec_push_pop_reg_16(t_ctx *ctx);
 u8 fmt_jump(t_ctx *ctx);
-u8 fmt_rm_imm(t_ctx *ctx);
+u8 fmt_imm_to_rm(t_ctx *ctx);
 
 #endif
