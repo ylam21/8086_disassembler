@@ -7,7 +7,7 @@ void write_file_header(i32 fd)
 
 void write_fmt_line_no_operands(t_ctx *ctx, u8 *mnemonic)
 {
-    u8 *line = strjoin_fmt(ctx->a, "%s", mnemonic);
+    u8 *line = strjoin_fmt(ctx->a, "%-7s", mnemonic);
     write(ctx->fd, line, strlen(line));
 }
 

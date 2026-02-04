@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include "../arena/arena.h"
 #include "../common.h"
+#include "opcodes.c"
 
 typedef struct
 {

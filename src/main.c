@@ -5,6 +5,15 @@
 #include "common.h" 
 #include "utils/io_utils.h"
 #include "decoder/decoder.h"
+#include "decoder/opcodes.h"
+
+u8 is_op_prefix(u8 opcode)
+{
+    return (opcode == 0x26 ||\
+            opcode == 0x2E ||\
+            opcode == 0x36 ||\
+            opcode == 0x3E);
+}
 
 i32 main(i32 argc, u8 **argv)
 {
@@ -54,12 +63,44 @@ i32 main(i32 argc, u8 **argv)
         return 1;
     }
 
-    u8 opcode = buffer[0];
+    u64 offset = 0;
+    u8 opcode;
+    t_ctx ctx = 
+    {
+        .a = a,
+        .b = buffer,
+        .fd = filename_out,
+        .current_ip = offset,
+        .seg_prefix = 0
+    };
 
+    u64 i = 0;
+    while (i < read_bytes)
+    {
+        ctx.b = &buffer[i];
+        opcode = ctx.b[0];
+        u8 is_prefix = is_op_prefix(opcode);
+        func_ptr handler = META_TABLE[opcode];
+        offset = handler(&ctx);
 
+        if (offset)
+        {
+            i += offset;
+            ctx.current_ip += offset;
+            arena_reset(ctx.a);
+            if (!is_prefix)
+            {
+                ctx.seg_prefix = 0xFF;
+            }
+        }
+        else
+        {
+            printf("Error: Infinite loop\n");
+            break;
+        }
+    }
 
     close(fd_out);
-
     printf("Output written to: `%s`\n",filename_out);
 
     return (EXIT_SUCCESS);
