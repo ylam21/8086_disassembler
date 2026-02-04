@@ -129,21 +129,27 @@ char *decode_imm_to_reg(t_arena *a, u8 W, u8 b2, u8 b3)
     }
 }
 
-u8 *decode_immediate(t_arena *a, u8 S, u8 W, u8 *imm_ptr)
+u8 opcode_not_used(t_ctx *ctx)
+{
+    return OFFSET_OPCODE_NOT_USED;
+}
+
+static u8 *decode_immediate(t_ctx *ctx, u8 S, u8 W, u8 *imm_ptr)
 {
     if (W == 0)
     {
-
+        return strjoin_fmt(ctx->a, "0x%02X", *imm_ptr);
     }
     else if (S == 1)
     {
         i16 val = (i16)((i8)imm_ptr[0]);
+        return strjoin_fmt(ctx->a, "0x%04X", (u16)val);
     }
-}
-
-u8 opcode_not_used(t_ctx *ctx)
-{
-    return OFFSET_OPCODE_NOT_USED;
+    else
+    {
+        u16 val = imm_ptr[0] | (imm_ptr[1] << 8);
+        return strjoin_fmt(ctx->a, "0x%04X", val);
+    }
 }
 
 u8 fmt_imm_to_rm(t_ctx *ctx)
@@ -152,33 +158,42 @@ u8 fmt_imm_to_rm(t_ctx *ctx)
     u8 idx = (ctx->b[1] >> 3) & 0x7;
     u8 S = (ctx->b[0] >> 1) & 0x1;
     u8 W = ctx->b[0] & 0x1;
+    u8 MOD = (ctx->b[1] >> 6) & 0x3;
     u8 RM = ctx->b[1] & 0x7;
-    u8 MOD = (ctx->b[1] >> 6) & 0x7;
 
     u8* field_rm = decode_rm(ctx, RM, MOD, W);
 
-    u8 *field_imm;
-    if (S == 1 && W == 1)
+    u8 current_len = match_MODRM_with_offset(MOD, RM);
+    u8 *imm_ptr = &ctx->b[current_len];
+
+    u8 *field_imm = decode_immediate(ctx, S, W, imm_ptr); 
+
+    if (MOD != 0x3)    
     {
-        /* Perfrom Sign Extension */
-
-
+        if (W == 0x0)
+        {
+            field_rm = strjoin_fmt(ctx->a,"%s %s", "byte", field_rm);
+        }
+        else
+        {
+            field_rm = strjoin_fmt(ctx->a,"%s %s", "word", field_rm);
+        }
     }
-    else if (S == 0 && W == 1)
+
+    u8 *operands = strjoin_fmt(ctx->a, "%s, %s", field_rm, field_imm);
+    write_fmt_line(ctx, mnemonics[idx], operands);
+
+    u8 imm_len;
+    if (W == 1 && S == 0)
     {
-        field_imm = decode_imm(ctx->a, W, MOD, RM, ctx->b[2], ctx->b[3], ctx->b[4], ctx->b[5]); 
+        imm_len = 2;
     }
     else
     {
-
+        imm_len = 1;
     }
 
-
-    if (!field_imm)
-    {
-        return EXIT_ERROR;
-    }
-
+    return current_len + imm_len;
 }
 
 u8 fmt_jump(t_ctx *ctx)
@@ -278,6 +293,36 @@ u8 fmt_imm_to_acc(t_ctx *ctx)
         write_fmt_line(ctx, acc_mnemonics[idx], operands);
         return 3;
     }
+}
+
+u8 fmt_modrm_test_xchg_mov(t_ctx *ctx)
+{
+    u8 *mnemonics[8] = {"test", "test", "xchg", "xchg", "mov", "mov","mov", "mov"};
+    u8 idx = ctx->b[0] - 0x84;
+    u8 D = (ctx->b[0] >> 1) & 0x1;
+    u8 W = ctx->b[0] & 0x1;
+    u8 MOD = (ctx->b[1] >> 6) & 0x3; 
+    u8 REG = (ctx->b[1] >> 3) & 0x7;
+    u8 RM = ctx->b[1] & 0x7;
+
+    u8 *field_RM = decode_rm(ctx, RM, MOD, W);
+    u8 *field_REG = decode_reg(REG, W);
+
+    u8 *operands;
+    if (D == 0)
+    {
+        /* Instruction source is specifiend in REG field */   
+        operands = strjoin_fmt(ctx->a, "%s, %s", field_RM, field_REG);
+    }
+    else
+    {
+        /* Instruction destination is specifiend in REG field */   
+        operands = strjoin_fmt(ctx->a, "%s, %s", field_REG, field_RM);
+    }
+
+    write_fmt_line(ctx, mnemonics[idx], operands);
+
+    return match_MODRM_with_offset(MOD, RM);
 }
 
 u8 fmt_modrm_common(t_ctx *ctx)
