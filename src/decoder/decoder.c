@@ -19,13 +19,37 @@ typedef enum
     MASK_MS_8 = 0xFF,
 } mask_ms_n;
 
-char *table_reg_w_zero[] = {"al", "cl", "dl", "bl", "ah", "ch", "dh", "bh"};
-char *table_reg_w_one[]  = {"ax", "cx", "dx", "bx", "sp", "bp", "si", "di"};
-char *table_rm_memmode[] = {"bx + si", "bx + di", "bp + si", "bp + di", "si", "di", "bp", "bx"};
+u8 *table_reg_w_zero[] = {"al", "cl", "dl", "bl", "ah", "ch", "dh", "bh"};
+u8 *table_reg_w_one[]  = {"ax", "cx", "dx", "bx", "sp", "bp", "si", "di"};
+u8 *table_mem_address_calc[] = {"bx + si", "bx + di", "bp + si", "bp + di", "si", "di", "bp", "bx"};
+u8 *table_sreg[] = {"es", "cs", "ss", "ds"};
+u8 table_seg_override[4] = "";
 
+static u8 *get_seg_prefix_str(u8 prefix)
+{
+    if (prefix == 0x26)
+    {
+        return "es:";
+    }
+    else if (prefix == 0x2E)
+    {
+        return "cs:";
+    }
+    else if (prefix == 0x36)
+    {
+        return "ss:";
+    }
+    else if (prefix == 0x3E)
+    {
+        return "ds:";
+    }
+    else
+    {
+        return "";
+    }
+}
 
-
-char *decode_field_reg(u8 REG, u8 W)
+static u8 *decode_field_reg(u8 REG, u8 W)
 {
     if (W == 0)
     {
@@ -37,8 +61,9 @@ char *decode_field_reg(u8 REG, u8 W)
     }
 }
 
-char *create_mem_operand_disp_none(t_arena *a, char *s, size_t s_len)
+static u8 *decode_field_mem_disp_none(t_arena *a, u8 *prefix, u8 *base)
 {
+    //TODO: arena push format
     char prefix = '[';
     char suffix = ']';
 
@@ -85,20 +110,16 @@ char *create_mem_operand_disp_8(t_arena *a, char *s, size_t s_len, u8 b3)
     return result;
 }
 
-/*
- * Following Intel convention, if the displacement is two bytes, the most-significant byte is stored second in the instruction.
- */
-char *concat_2_bytes_to_str(t_arena *a, u8 lsb, u8 msb)
+/* Following Intel convention, if the displacement is two bytes,
+   the most-significant byte is stored second in the instruction. */
+static u8 *concat_2_bytes(t_arena *a, u8 lsb, u8 msb)
 {
-    char *result;
-    u16 byte_value = (msb << 8) | lsb;
+    u8 *result;
+    u16 concat = (msb << 8) | lsb;
 
-    result = itoa(a, (i32)byte_value); // NOTE: just stick with i32
-    if (!result)
-    {
-        printf("Error: itoa returns NULL value\n");
-        return NULL;
-    }
+    result = itoa(a, (i32)concat); 
+    if (!result) {return NULL;}
+
     return result;
 }
 
@@ -165,10 +186,10 @@ char *create_mem_operand_disp_16(t_arena *a, char *s, size_t s_len, u8 b3, u8 b4
     return result;
 }
 
-/* TODO: note that RM and REG field are 3bit fields */
-char *decode_field_rm(t_arena *a, u8 RM, u8 MOD, u8 W, u8 b3, u8 b4)
+static u8 *decode_field_rm(t_arena *a, u8 RM, u8 MOD, u8 W, u8 disp_lo, u8 disp_hi, u8 seg_prefix)
 {
-    char *base = table_rm_memmode[RM];
+    u8 *base = table_mem_address_calc[RM];
+    u8 *prefix = get_seg_prefix_str(seg_prefix);
     if (MOD == 0x0)
     {
         /* Memory Mode, no displacement follows
@@ -177,25 +198,25 @@ char *decode_field_rm(t_arena *a, u8 RM, u8 MOD, u8 W, u8 b3, u8 b4)
         {
             /* Effective Address Calculation
                DIRECT ADDRESS */
-            return create_mem_operand_dir_add_disp_16(a, b3, b4);
+            return create_mem_operand_dir_add_disp_16(a, disp_lo, disp_hi);
         }
         else
         {
             /* Effective Address Calculation */
-            return create_mem_operand_disp_none(a, base, strlen(base));
+            return decode_field_mem_disp_none(a, prefix, base);
         }
     }
     else if (MOD == 0x1)
     {
         /* Memory Mode, 8-bit displacement follows
            Effective Address Calculation           */
-        return create_mem_operand_disp_8(a, base, strlen(base), b3);
+        return create_mem_operand_disp_8(a, base, strlen(base), disp_lo);
     }
     else if (MOD == 0x2)
     {
         /* Memory Mode, 16-bit displacement follows
            Effective Address Calculation           */
-        return create_mem_operand_disp_16(a, base, strlen(base), b3, b4);
+        return create_mem_operand_disp_16(a, base, strlen(base), disp_lo, disp_hi);
     }
     else
     {
@@ -204,7 +225,7 @@ char *decode_field_rm(t_arena *a, u8 RM, u8 MOD, u8 W, u8 b3, u8 b4)
     }
 }
 
-size_t match_MOD_with_offset(u8 MOD, u8 RM)
+static u8 match_MODRM_with_offset(u8 MOD, u8 RM)
 {
     if (MOD == 0x0)
     {
@@ -621,7 +642,7 @@ size_t decode_mov_acctomem(int fd, u8 b1, u8 b2, u8 b3)
     }
 }
 
-size_t decode_bin_to_asm_16(i32 fd, u8 *buffer)
+u8 decode_8086_instruction(i32 fd, u8 *buffer)
 {
     u8 byte = buffer[0];
     if ((byte & MASK_MS_6) == OPCODE_MOV_RMTOREG)
@@ -663,4 +684,126 @@ size_t decode_bin_to_asm_16(i32 fd, u8 *buffer)
     }
 }
 
+u8 opcode_not_used(t_ctx *ctx)
+{
+    return OFFSET_OPCODE_NOT_USED;
+}
 
+u8 fmt_jump(t_ctx *ctx)
+{
+    u8 *mnemonics[16] =
+    {
+        "jo", "jno",
+        "jb", "jnb",
+        "je", "jne",
+        "jbe","jnbe",
+        "js", "jns",
+        "jp", "jnp",
+        "jl", "jnl",
+        "jle", "jnhle"
+    };
+    u8 idx = ctx->b[0] & 0xF;
+    i8 IP_INC8 = (i8)ctx->b[1];
+    i32 target_address = ctx->current_ip + 2 + IP_INC8;
+
+    /* TODO: create fmt write func */
+    write_line(ctx->fd, mnemonics[idx], &target_address, NULL);
+
+    return 2;
+}
+
+u8 inc_dec_push_pop_reg_16(t_ctx *ctx)
+{
+    u8 *mnemonics[4] = {"inc", "dec", "push", "pop"};
+    u8 idx = (ctx->b[0] >> 3) & 0x3;
+    u8 REG = ctx->b[0] & 0x7;
+    write_line_str(ctx->fd, mnemonics[idx], table_reg_w_one[REG]);
+    return 1;
+}
+
+u8 handle_cbw_cwd_wait_pushf_popf_sahf_lahf(t_ctx *ctx)
+{
+    u8 *mnemonics[8] = {"cbw", "cwd", "wait", "pushf", "popf", "sahf", "lahf"};
+    u8 idx = ctx->b[0] & 0x7;
+    write_string_fd(ctx->fd, mnemonics[idx]);
+    return 1;
+}
+
+u8 handle_daa_das_aaa_aas(t_ctx *ctx)
+{
+    u8 *mnemonics[4] = {"daa", "das", "aaa", "aas"};
+    u8 idx = (ctx->b[0] >> 3) & 0x3;
+    write_string_fd(ctx->fd, mnemonics[idx]);
+    return 1;
+}
+
+u8 fmt_segment_fix(t_ctx *ctx)
+{
+    u8 REG = (ctx->b[0] >> 3) & 0x3;
+    u8 *field_sreg = table_sreg[REG];
+
+    write_line_str(ctx->fd, mnemonic, field_sreg);
+}
+
+u8 fmt_imm_to_acc(t_ctx *ctx)
+{
+    u8 W = ctx->b[0] & 0x1;
+    u8 *field_imm;
+
+    if (W == 0)
+    {
+        field_imm = itoa(ctx->a, (i32)ctx->b[1]);
+        if (!field_imm)
+        {
+            return EXIT_ERROR;
+        }
+        write_line(ctx->fd, mnemonic, ACC_BYTE, field_imm);
+        return 2;
+    }
+    else
+    {
+        field_imm = concat_2_bytes(ctx->a, ctx->b[1], b[2]);
+        if (!field_imm)
+        {
+            return EXIT_ERROR;
+        }
+        write_line(ctx->fd, mnemonic, ACC_WORD, field_imm);
+        return 3;
+    }
+}
+
+u8 fmt_modrm_common(t_ctx *ctx)
+{
+    u8 *mnemonics[8] = {"add", "or", "adc", "ssb", "and", "sub", "xor", "cmp"};
+    u8 idx = (ctx->b[0] >> 3) & 0x7;
+    u8 D = (ctx->b[0] >> 1) & 0x1;
+    u8 W = ctx->b[0] & 0x1;
+    u8 MOD = (ctx->b[1] >> 6) & 0x3; 
+    u8 REG = (ctx->b[1] >> 3) & 0x7;
+    u8 RM = ctx->b[1] & 0x7;
+
+    u8 *field_RM = decode_field_rm(ctx->a, RM, MOD, W, ctx->b[2], ctx->b[3], ctx->seg_prefix);
+    if (!field_RM)
+    {
+        return EXIT_ERROR;
+    }
+
+    u8 *field_REG = decode_field_reg(REG, W);
+    if (!field_REG)
+    {
+        return EXIT_ERROR;
+    }
+
+    if (D == 0)
+    {
+        /* Instruction source is specifiend in REG field */   
+        write_line(ctx->fd, mnemonics[idx], field_RM, field_REG);
+    }
+    else
+    {
+        /* Instruction destination is specifiend in REG field */   
+        write_line(ctx->fd, mnemonics[idx], field_REG, field_RM);
+    }
+
+    return match_MODRM_with_offset(MOD, RM);
+}

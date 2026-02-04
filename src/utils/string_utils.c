@@ -13,12 +13,12 @@ static size_t i32len(i32 x)
 	return (len);
 }
 
-char *strjoin(t_arena *a, char *s1, char *s2)
+u8 *strjoin(t_arena *a, u8 *s1, u8 *s2)
 {
-    char *result;
-    size_t s1_len;
-    size_t s2_len;
-    size_t size;
+    u8 *result;
+    u64 s1_len;
+    u64 s2_len;
+    u64 size;
 
     s1_len = strlen(s1);
     s2_len = strlen(s2);
@@ -26,7 +26,6 @@ char *strjoin(t_arena *a, char *s1, char *s2)
     result = arena_alloc(a, size);
     if (!result)
     {
-        printf("Error: Could not allocate memory to the arena\n");
         return NULL;
     }
 
@@ -37,11 +36,11 @@ char *strjoin(t_arena *a, char *s1, char *s2)
     return result;
 }
 
-char *itoa(t_arena *a, i32 x)
+u8 *itoa(t_arena *a, i32 x)
 {
-	size_t len;
-	long nb;
-	char *result;
+	u64 len;
+	i64 nb;
+	u8 *result;
 
 	len = i32len(x);
 

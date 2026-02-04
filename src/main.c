@@ -6,7 +6,7 @@
 #include "utils/io_utils.h"
 #include "decoder/decoder.h"
 
-int main(int argc, char **argv)
+i32 main(i32 argc, u8 **argv)
 {
     if (argc != 2)
     {
@@ -48,13 +48,16 @@ int main(int argc, char **argv)
         printf("Nothing to decode\n");
     }
 
-    ssize_t idx = 0;
-    size_t offset = 0;
-    while (idx < read_bytes)
+    t_arena *a = arena_create(LIFE_ARENA_SIZE);
+    if (!a)
     {
-        offset = decode_bin_to_asm_16(fd_out, buffer + idx);
-        idx += offset;
+        return 1;
     }
+
+    u8 opcode = buffer[0];
+
+
+
     close(fd_out);
 
     printf("Output written to: `%s`\n",filename_out);

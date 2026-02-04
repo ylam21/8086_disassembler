@@ -2,18 +2,20 @@
 #define ARENA_H
 
 #include <stddef.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include "../common.h"
 
 typedef struct s_arena
 {
     void *buffer;
-    size_t idx;
-    size_t cap;
+    u64 idx;
+    u64 cap;
 }   t_arena;
 
-t_arena *arena_create(size_t size);
-void *arena_alloc(t_arena *a, size_t size);
+t_arena *arena_create(u64 size);
+void *arena_alloc(t_arena *a, u64 size);
 void arena_reset(t_arena *a);
 void arena_destroy(t_arena *a);
 

@@ -1,16 +1,18 @@
 #include "arena.h"
 
-t_arena *arena_create(size_t size)
+t_arena *arena_create(u64 size)
 {
     t_arena *a;
     a = malloc(sizeof(t_arena));
     if (a == NULL)
     {
+        perror("malloc");
         return NULL;
     }
     a->buffer = malloc(size);
     if (a->buffer == NULL)
     {
+        perror("malloc");
         free(a);
         return NULL;
     }
@@ -19,13 +21,13 @@ t_arena *arena_create(size_t size)
     return a;
 }
 
-static size_t align_forward(size_t ptr, size_t align)
+static u64 align_forward(u64 ptr, u64 align)
 {
     uintptr_t p = ptr;
     return ((p + align - 1) & ~(align - 1));
 }
 
-void  *arena_alloc(t_arena *a, size_t size)
+void  *arena_alloc(t_arena *a, u64 size)
 {
     size_t align = sizeof(void *);
 
