@@ -28,5 +28,13 @@ u8 fmt_movs_cmps_stos_lods_scas(t_ctx *ctx);
 u8 fmt_test_imm_to_acc(t_ctx *ctx);
 u8 fmt_mov_imm_to_reg(t_ctx *ctx);
 u8 handle_ret(t_ctx *ctx);
+u8 fmt_les_lds_mem16_to_reg16(t_ctx *ctx);
+u8 fmt_mov_imm_to_mem(t_ctx *ctx);
+u8 handle_interrupt(t_ctx *ctx);
+u8 fmt_rol_ror_rcl_rcr_sal_shr_sar(t_ctx *ctx);
+u8 handle_aam_aad_xlat(t_ctx *ctx);
+
+
+u8 fmt_esc(t_ctx *ctx);
 
 #endif

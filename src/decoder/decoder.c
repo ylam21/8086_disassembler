@@ -570,3 +570,166 @@ u8 handle_ret(t_ctx *ctx)
         return 1;
     }
 }
+
+u8 fmt_les_lds_mem16_to_reg16(t_ctx *ctx)
+{
+    u8 W = 0x1;
+
+    u8 MOD = (ctx->b[1] >> 6) & 0x3; 
+    u8 REG = (ctx->b[1] >> 3) & 0x7;
+    u8 RM = ctx->b[1] & 0x7;
+
+    u8 *field_RM = decode_rm(ctx, RM, MOD, W);
+    u8 *field_REG = decode_reg(REG, W);
+
+    u8 *operands = strjoin_fmt(ctx->a, "%s, %s", field_REG, field_RM);
+    u8 idx = ctx->b[0] & 0x1;
+    if (idx == 0x0)
+    {
+        write_fmt_line(ctx, "les", operands);
+    }
+    else
+    {
+        write_fmt_line(ctx, "lds", operands);
+    }
+
+    return match_MODRM_with_offset;
+}
+
+u8 fmt_mov_imm_to_mem(t_ctx *ctx)
+{
+    u8 W = ctx->b[0] & 0x1;
+    u8 MOD = (ctx->b[1] >> 6) & 0x3;
+    u8 RM = ctx->b[1] & 0x7;
+
+    u8* field_rm = decode_rm(ctx, RM, MOD, W);
+
+    u8 current_len = match_MODRM_with_offset(MOD, RM);
+    u8 *imm_ptr = &ctx->b[current_len];
+
+    u8 *field_imm = decode_immediate(ctx, 0, W, imm_ptr); 
+
+    if (MOD != 0x3)    
+    {
+        if (W == 0x0)
+        {
+            field_rm = strjoin_fmt(ctx->a,"%s %s", "byte", field_rm);
+        }
+        else
+        {
+            field_rm = strjoin_fmt(ctx->a,"%s %s", "word", field_rm);
+        }
+    }
+
+    u8 *operands = strjoin_fmt(ctx->a, "%s, %s", field_rm, field_imm);
+    write_fmt_line(ctx, "mov", operands);
+
+    u8 imm_len;
+    if (W == 1)
+    {
+        imm_len = 2;
+    }
+    else
+    {
+        imm_len = 1;
+    }
+
+    return current_len + imm_len;
+}
+
+u8 handle_interrupt(t_ctx *ctx)
+{
+    u8 *mnemonics[4] = {"int", "int", "into", "iret"};
+    u8 idx = ctx->b[0] & 0x3;
+
+    u8 *field_IMM;
+    if (idx == 0x0)
+    {
+        field_IMM = strjoin_fmt(ctx->a, "%u", 3);
+        write_fmt_line(ctx, mnemonics[idx], field_IMM);
+        return 1;
+    }
+    else if (idx == 0x1)
+    {
+        field_IMM = strjoin_fmt(ctx->a, "0x%02X", ctx->b[1]);
+        write_fmt_line(ctx,mnemonics[idx], field_IMM);
+        return 2;
+    }
+    else 
+    {
+        write_fmt_line_no_operands(ctx, mnemonics[idx]);
+        return 1;
+    }
+}
+
+u8 fmt_rol_ror_rcl_rcr_sal_shr_sar(t_ctx *ctx)
+{
+    u8 *mnemonics[8] = {"rol", "ror", "rcl", "rcr", "sal", "shr","", "sar"};
+
+    u8 W = ctx->b[0] & 0x1;
+    u8 V = (ctx->b[0] >> 1) & 0x1;
+    u8 MOD = (ctx->b[1] >> 6) & 0x3;
+    u8 REG = (ctx->b[1] >> 3) & 0x7;
+    u8 RM = ctx->b[1] & 0x7;
+
+    u8 *field_RM = decode_rm(ctx, RM, MOD, W);
+
+    u8 *operands;
+    if (V == 0x0)
+    {
+        operands = strjoin_fmt(ctx->a, "%s, %u", field_RM, 1u);
+    }
+    else
+    {
+        operands = strjoin_fmt(ctx->a, "%s, cl", field_RM);
+    }
+
+    write_fmt_line(ctx, mnemonics[REG], operands);
+
+    return match_MODRM_with_offset(MOD, RM);
+}
+
+u8 handle_aam_aad_xlat(t_ctx *ctx)
+{
+    u8 opcode = ctx->b[0];
+
+    if (opcode == 0xD7)
+    {
+        write_fmt_line_no_operands(ctx, "xlat");
+        return 1;
+    }
+
+    u8 *mnemonic;
+    if (opcode == 0xD4)
+    {
+        mnemonic = "aam";
+    }
+    else
+    {
+        mnemonic = "aad";
+    }
+
+    u8 imm = ctx->b[1];
+    u8 *operands = strjoin_fmt(ctx->a, "0x%02X", imm);
+    
+    write_fmt_line(ctx, mnemonic, operands);
+
+    return 2;
+}
+
+u8 fmt_esc(t_ctx *ctx)
+{
+    u8 MOD = (ctx->b[1] >> 6) & 0x3;
+    u8 RM  = ctx->b[1] & 0x7;
+    u8 REG = (ctx->b[1] >> 3) & 0x7;
+
+    u8 ext_opcode = ((ctx->b[0] & 0x7) << 3) | REG;
+
+    u8 *rm_field = decode_rm(ctx, RM, MOD, 1);
+
+    u8 *operands = strjoin_fmt(ctx->a, "0x%02X, %s", ext_opcode, rm_field);
+    
+    write_fmt_line(ctx, "esc", operands);
+
+    return match_MODRM_with_offset(MOD, RM);
+}
