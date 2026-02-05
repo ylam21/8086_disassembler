@@ -1,24 +1,5 @@
 #include "decoder.h"
 
-typedef enum 
-{
-    OPCODE_MOV_RMTOREG = 0x88,
-    OPCODE_MOV_IMTORM = 0xC6,
-    OPCODE_MOV_IMTOREG = 0xB0,
-    OPCODE_MOV_MEMTOACC = 0xA0,
-    OPCODE_MOV_ACCTOMEM = 0xA2,
-    OPCODE_MOV_RMTOSREG = 0x8E,
-    OPCODE_MOV_SREGTORM = 0x8C
-}   opcode_mov_type;
-
-typedef enum
-{
-    MASK_MS_4 = 0xF0,
-    MASK_MS_6 = 0xFC,
-    MASK_MS_7 = 0xFE,
-    MASK_MS_8 = 0xFF,
-} mask_ms_n;
-
 u8 *table_reg_w_zero[] = {"al", "cl", "dl", "bl", "ah", "ch", "dh", "bh"};
 u8 *table_reg_w_one[]  = {"ax", "cx", "dx", "bx", "sp", "bp", "si", "di"};
 u8 *table_mem_address_calc[] = {"bx + si", "bx + di", "bp + si", "bp + di", "si", "di", "bp", "bx"};
@@ -36,8 +17,6 @@ static u8 *decode_reg(u8 REG, u8 W)
         return (table_reg_w_one[REG]);
     }
 }
-
-
 
 /* Following Intel convention, if the displacement is two bytes,
    the most-significant byte is stored second in the instruction. */
@@ -134,6 +113,7 @@ u8 opcode_not_used(t_ctx *ctx)
     return OFFSET_OPCODE_NOT_USED;
 }
 
+
 static u8 *decode_immediate(t_ctx *ctx, u8 S, u8 W, u8 *imm_ptr)
 {
     if (W == 0)
@@ -220,6 +200,26 @@ u8 fmt_jump(t_ctx *ctx)
     return 2;
 }
 
+
+u8 fmt_xchg_reg16_to_acc(t_ctx *ctx)
+{
+    u8 REG = ctx->b[0] & 0x7;
+    
+    if (REG == 0x0)
+    {
+        write_fmt_line_no_operands(ctx, "nop");
+    }
+    else
+    {
+        u8 *field_REG = table_reg_w_one[REG];
+
+        u8 *operands = strjoin_fmt(ctx->a, "ax, %s",field_REG);
+        write_fmt_line(ctx, "xchg", operands);
+    }
+    
+    return 1;
+}
+
 u8 handle_inc_dec_push_pop_reg_16(t_ctx *ctx)
 {
     u8 *mnemonics[4] = {"inc", "dec", "push", "pop"};
@@ -231,11 +231,29 @@ u8 handle_inc_dec_push_pop_reg_16(t_ctx *ctx)
     return 1;
 }
 
+u8 fmt_call_far(t_ctx *ctx)
+{
+    u16 offset = ctx->b[1] | (ctx->b[2] << 8);
+    u16 segment = ctx->b[3] | (ctx->b[4] << 8);
+
+    u8 *operands = strjoin_fmt(ctx->a, "0x%04X:0x%04X", segment, offset);
+    write_fmt_line(ctx, "call", operands);
+
+    return 5;
+}
+
 u8 handle_cbw_cwd_wait_pushf_popf_sahf_lahf(t_ctx *ctx)
 {
-    u8 *mnemonics[8] = {"cbw", "cwd", "wait", "pushf", "popf", "sahf", "lahf"};
+    u8 *mnemonics[8] = {"cbw", "cwd", "","wait", "pushf", "popf", "sahf", "lahf"};
     u8 idx = ctx->b[0] & 0x7;
-    write_string_fd(ctx->fd, mnemonics[idx]);
+    
+    if (idx == 2)
+    {
+        return 0;
+    }
+
+    write_fmt_line_no_operands(ctx, mnemonics[idx]);
+
     return 1;
 }
 
@@ -295,10 +313,8 @@ u8 fmt_imm_to_acc(t_ctx *ctx)
     }
 }
 
-u8 fmt_modrm_test_xchg_mov(t_ctx *ctx)
+static u8 fmt_modrm(t_ctx *ctx, u8 mnemonic)
 {
-    u8 *mnemonics[8] = {"test", "test", "xchg", "xchg", "mov", "mov","mov", "mov"};
-    u8 idx = ctx->b[0] - 0x84;
     u8 D = (ctx->b[0] >> 1) & 0x1;
     u8 W = ctx->b[0] & 0x1;
     u8 MOD = (ctx->b[1] >> 6) & 0x3; 
@@ -320,37 +336,85 @@ u8 fmt_modrm_test_xchg_mov(t_ctx *ctx)
         operands = strjoin_fmt(ctx->a, "%s, %s", field_REG, field_RM);
     }
 
-    write_fmt_line(ctx, mnemonics[idx], operands);
+    write_fmt_line(ctx, mnemonic, operands);
 
     return match_MODRM_with_offset(MOD, RM);
 }
+
+u8 fmt_pop_rm_16(t_ctx *ctx)
+{
+    u8 W = 1;
+    
+    u8 MOD = (ctx->b[1] >> 6) & 0x3; 
+    u8 RM = ctx->b[1] & 0x7;
+
+    u8 *field_RM = decode_rm(ctx, RM, MOD, W);
+
+    write_fmt_line(ctx, "pop", field_RM);
+
+    return match_MODRM_with_offset(MOD, RM);
+}
+
+u8 fmt_lea_mem_to_reg_16(t_ctx *ctx)
+{
+    u8 W = 0x1;
+
+    u8 MOD = (ctx->b[1] >> 6) & 0x3; 
+    u8 REG = (ctx->b[1] >> 3) & 0x7;
+    u8 RM = ctx->b[1] & 0x7;
+
+    u8 *field_RM = decode_rm(ctx, RM, MOD, W);
+    u8 *field_REG = decode_reg(REG, W);
+    
+    u8 *operands = strjoin_fmt(ctx->a, "%s, %s", field_REG, field_RM);
+
+    write_fmt_line(ctx, "lea", operands);
+    
+    return match_MODRM_with_offset(MOD, RM);
+}
+
+u8 fmt_modrm_test_xchg_mov(t_ctx *ctx)
+{
+    u8 *mnemonics[8] = {"test", "test", "xchg", "xchg", "mov", "mov", "mov", "mov"};
+    u8 idx = ctx->b[0] - 0x84;
+
+    return fmt_modrm(ctx, mnemonics[idx]);
+}
+
 
 u8 fmt_modrm_common(t_ctx *ctx)
 {
     u8 *mnemonics[8] = {"add", "or", "adc", "sbb", "and", "sub", "xor", "cmp"};
     u8 idx = (ctx->b[0] >> 3) & 0x7;
-    u8 D = (ctx->b[0] >> 1) & 0x1;
-    u8 W = ctx->b[0] & 0x1;
-    u8 MOD = (ctx->b[1] >> 6) & 0x3; 
-    u8 REG = (ctx->b[1] >> 3) & 0x7;
-    u8 RM = ctx->b[1] & 0x7;
 
-    u8 *field_RM = decode_rm(ctx, RM, MOD, W);
-    u8 *field_REG = decode_reg(REG, W);
+    return fmt_modrm(ctx, mnemonics[idx]);
+}
+
+u8 fmt_mov_sreg_common(t_ctx *ctx)
+{
+    u8 W = 0x1;
+    u8 D = (ctx->b[0] >> 1) & 0x1;
+    u8 MOD = (ctx->b[1] >> 6) & 0x3; 
+    u8 RM = ctx->b[1] & 0x7;
+    u8 SREG = (ctx->b[1] >> 3) & 0x3;
+
+    u8 *field_rm = decode_rm(ctx, RM, MOD, W);
+    u8 *field_sreg = table_sreg[SREG];
 
     u8 *operands;
-    if (D == 0)
+    
+    if (D == 0x0)
     {
-        /* Instruction source is specifiend in REG field */   
-        operands = strjoin_fmt(ctx->a, "%s, %s", field_RM, field_REG);
+        /* Instruction source is specifiend in SREG field */   
+        operands = strjoin_fmt(ctx->a, "%s, %s", field_rm, field_sreg);
     }
     else
     {
-        /* Instruction destination is specifiend in REG field */   
-        operands = strjoin_fmt(ctx->a, "%s, %s", field_REG, field_RM);
+        /* Instruction destination is specifiend in SREG field */   
+        operands = strjoin_fmt(ctx->a, "%s, %s", field_sreg, field_rm);
     }
 
-    write_fmt_line(ctx, mnemonics[idx], operands);
-
+    write_fmt_line(ctx, "mov", operands);
+    
     return match_MODRM_with_offset(MOD, RM);
 }
