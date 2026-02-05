@@ -18,9 +18,6 @@ static u8 *decode_reg(u8 REG, u8 W)
     }
 }
 
-/* Following Intel convention, if the displacement is two bytes,
-   the most-significant byte is stored second in the instruction. */
-
 static u8 *decode_rm(t_ctx *ctx, u8 RM, u8 MOD, u8 W)
 {
     u8 *base = table_mem_address_calc[RM];
@@ -94,17 +91,17 @@ static u8 match_MODRM_with_offset(u8 MOD, u8 RM)
     }
 }
 
-// NOTE: SUS
 /* The second byte of a two-byte immediate value is the most significant. */
-char *decode_imm_to_reg(t_arena *a, u8 W, u8 b2, u8 b3)
+static u8 *decode_imm_to_reg(t_ctx *ctx, u8 W, u8 data_lo, u8 data_hi)
 {
     if (W == 0x0)
     {
-        return itoa(a, (i32)b2);
+        return strjoin_fmt(ctx->a, "0x%02X", data_lo);
     }
     else
     {
-        return concat_2_bytes_to_str(a, b2, b3);
+        u16 val = data_lo | (data_hi << 8);
+        return strjoin_fmt(ctx->a, "0x%04X", val);
     }
 }
 
@@ -116,11 +113,11 @@ u8 opcode_not_used(t_ctx *ctx)
 
 static u8 *decode_immediate(t_ctx *ctx, u8 S, u8 W, u8 *imm_ptr)
 {
-    if (W == 0)
+    if (W == 0x0)
     {
         return strjoin_fmt(ctx->a, "0x%02X", *imm_ptr);
     }
-    else if (S == 1)
+    else if (S == 0x1)
     {
         i16 val = (i16)((i8)imm_ptr[0]);
         return strjoin_fmt(ctx->a, "0x%04X", (u16)val);
@@ -417,4 +414,159 @@ u8 fmt_mov_sreg_common(t_ctx *ctx)
     write_fmt_line(ctx, "mov", operands);
     
     return match_MODRM_with_offset(MOD, RM);
+}
+
+u8 fmt_mov_mem_to_reg(t_ctx *ctx)
+{
+    u8 opcode = ctx->b[0];
+    u8 W = opcode & 0x1;
+    u8 D = (opcode >> 1) & 0x1; 
+
+    u16 addr = ctx->b[1] | (ctx->b[2] << 8);
+    
+    u8 *prefix_str;
+    
+    if (ctx->seg_prefix < 4)
+    {
+        prefix_str = table_sreg[ctx->seg_prefix];
+    }
+    else
+    {
+        prefix_str = (u8 *)"ds";
+    }
+
+    u8 *mem_op = strjoin_fmt(ctx->a, "%s:[0x%04X]", prefix_str, addr);
+    
+    u8 *reg_op;
+    
+    if (W == 0x0)
+    {
+        reg_op = ACC_BYTE;
+    }
+    else
+    {
+        reg_op = ACC_WORD;
+    }
+    
+    u8 *operands;
+    if (D == 0)
+        operands = strjoin_fmt(ctx->a, "%s, %s", reg_op, mem_op);
+    else        
+        operands = strjoin_fmt(ctx->a, "%s, %s", mem_op, reg_op);
+
+    write_fmt_line(ctx, "mov", operands);
+
+    return 3; 
+}
+
+u8 fmt_movs_cmps_stos_lods_scas(t_ctx *ctx)
+{
+    char *base_mnemonics[6] = 
+    {
+        "movs", 
+        "cmps", 
+        NULL,   
+        "stos", 
+        "lods", 
+        "scas"  
+    };
+
+    u8 opcode = ctx->b[0];
+    u8 idx = (opcode - 0xA4) >> 1;
+
+    if (idx == 2)
+    {
+        return 0; 
+    }
+
+    u8 W = opcode & 0x1;
+    char suffix;
+    if (W == 0x0)
+    {
+        suffix = 'b';
+    }
+    else
+    {
+        suffix = 'w';
+    }
+    
+    u8 *full_mnemonic = strjoin_fmt(ctx->a, "%s%c", base_mnemonics[idx], suffix);
+    
+    write_fmt_line_no_operands(ctx, full_mnemonic);
+
+    return 1;
+}
+
+u8 fmt_test_imm_to_acc(t_ctx *ctx)
+{
+    u8 W = ctx->b[0] & 0x1;
+
+    u8 *operands;
+    if (W == 0)
+    {
+        operands = strjoin_fmt(ctx->a, "%s, 0x%02X", ACC_BYTE, ctx->b[1]);
+        write_fmt_line(ctx, "test", operands);
+        return 2;
+    }
+    else
+    {
+        u16 val = (ctx->b[2] << 8) | ctx->b[1];
+        operands = strjoin_fmt(ctx->a, "%s, 0x%04X", ACC_WORD, val);
+        write_fmt_line(ctx, "test", operands);
+        return 3;
+    }
+}
+
+u8 fmt_mov_imm_to_reg(t_ctx *ctx)
+{
+    u8 REG = ctx->b[0] & 0x7;
+    u8 W = (ctx->b[0] >> 3) & 0x1;
+
+    u8 *field_IMM = decode_imm_to_reg(ctx, W, ctx->b[1], ctx->b[2]);
+    u8 *field_REG = decode_reg(REG, W);
+
+    u8 *operands = strjoin_fmt(ctx->a, "%s, %s", field_REG, field_IMM);
+
+    write_fmt_line(ctx, "mov", operands);
+
+    if (W == 0x0)
+    {
+        return 2;
+    }
+    else
+    {
+        return 3;
+    }
+}
+
+u8 handle_ret(t_ctx *ctx)
+{
+    u8 opcode = ctx->b[0];
+    
+    u8 is_far = (opcode >> 3) & 0x1;
+    
+    char *mnemonic;
+    if (is_far == 0x0)
+    {
+        mnemonic = "ret";
+    }
+    else
+    {
+        mnemonic = "retf";
+    }
+
+    u8 has_imm = !(opcode & 0x1); 
+
+    if (has_imm)
+    {
+        u16 val = ctx->b[1] | (ctx->b[2] << 8);
+        u8 *imm_str = strjoin_fmt(ctx->a, "0x%04X", val);
+        write_fmt_line(ctx, mnemonic, imm_str);
+        return 3;
+    }
+    else
+    {
+        write_fmt_line_no_operands(ctx, mnemonic);
+        return 1;
+    }
 }

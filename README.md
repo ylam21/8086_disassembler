@@ -1,10 +1,9 @@
 # 8086 Disassembler
 
-A lightweight 8086 instruction disassembler that converts binary machine code into readable assembly (`.asm`) source.<br>
-**NOTE:** the program can only decode the `mov` instruction.<br>
+A 8086 instruction disassembler that converts binary machine code into readable assembly (`.asm`) source.<br>
+All covered operation (instruction) codes (OPCODES) are listed under `src/decoder/opcodes.c` source file. All OPCODES are encoded in the 1st byte of the instruction - there is 256 different combinations, however, many instrucitons share the same logic. You can see the `src/decoder/opcodes.c` file where the patterns in the encoding logic are easily seen.
 
 ## References
-[Intel 8086 Family User's Manual October 1979](https://edge.edx.org/c4x/BITSPilani/EEE231/asset/8086_family_Users_Manual_1_.pdf) [edx.org]<br>
 [Intel 8086 Family User's Manual October 1979](https://archive.org/details/bitsavers_intel80869lyUsersManualOct79_62967963/page/n1/mode/2up) [archive.org]<br>
 This project is a solution for one of the homework assignments in Casey Muratori's [Performance-Aware Programming](https://www.computerenhance.com/) course.<br>
 
