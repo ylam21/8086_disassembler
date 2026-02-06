@@ -1,7 +1,7 @@
 #include "decoder.h"
 #include "opcodes.h"
 
-func_ptr META_TABLE[256] =
+func_ptr opcode_table[256] =
 {
     [0x00] = fmt_modrm_common,
     [0x01] = fmt_modrm_common,

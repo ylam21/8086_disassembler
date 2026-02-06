@@ -79,7 +79,7 @@ int main(int argc, char **argv)
         ctx.b = &buffer[i];
         opcode = ctx.b[0];
         u8 is_prefix = is_op_prefix(opcode);
-        func_ptr handler = META_TABLE[opcode];
+        func_ptr handler = opcode_table[opcode];
         offset = handler(&ctx);
 
         if (offset)

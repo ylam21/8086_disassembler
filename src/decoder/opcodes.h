@@ -17,6 +17,6 @@ typedef struct
 
 typedef u8 (*func_ptr)(t_ctx *ctx); 
 
-extern func_ptr META_TABLE[256];
+extern func_ptr opcode_table[256];
 
 #endif
