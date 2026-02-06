@@ -26,6 +26,15 @@ static u8 *decode_rm(t_ctx *ctx, u8 RM, u8 MOD, u8 W)
     {
         prefix = table_sreg[ctx->seg_prefix];
     }
+   
+    if (prefix)
+    {
+        prefix = strjoin_fmt(ctx->a, "%s:", prefix);
+    }
+    else
+    {
+        prefix = (u8 *)"";
+    }
 
     if (MOD == 0x0 && RM == 0x6)
     {
@@ -42,8 +51,8 @@ static u8 *decode_rm(t_ctx *ctx, u8 RM, u8 MOD, u8 W)
     else if (MOD == 0x1)
     {
         /* Memory Mode, 8-bit displacement follows */
-        u8 disp = ctx->b[2];
-        return strjoin_fmt(ctx->a, "%?s[%s + %u]", prefix, base, disp);
+        i8 disp = (i8)ctx->b[2];
+        return strjoin_fmt(ctx->a, "%?s[%s + %d]", prefix, base, disp);
     }
     else if (MOD == 0x2)
     {
