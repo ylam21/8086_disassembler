@@ -45,32 +45,31 @@ u8 *strnjoin(t_arena *a, u8 *s1, u8 *s2, u64 n)
 u8 *itoa(t_arena *a, i32 x)
 {
 	u64 len;
-	i64 nb;
-	u8 *result;
+    i64 nb;
+    u8 *result;
 
-	len = i32len(x);
+    len = i32len(x);
+    result = arena_alloc(a, len); 
+    if (result == NULL)
+    {
+        return NULL;
+    }
 
-	result = arena_alloc(a, len + 1);
-	if (result == NULL)
-	{
-		return NULL;
-	}
-	result[len] = '\0';
+    nb = x;
+    if (nb == 0)
+    {
+        result[0] = '0';
+    }
+    else if (nb < 0)
+    {
+        result[0] = '-';
+        nb = -nb;
+    }
 
-	nb = x;
-	if (nb == 0)
-	{
-		result[0] = '0';
-	}
-	else if (nb < 0)
-	{
-		result[0] = '-';
-		nb = -nb;
-	}
-	while (nb)
-	{
-		result[--len] = (nb % 10) + '0';
-		nb /= 10;
-	}
-	return (result);
+    while (nb)
+    {
+        result[--len] = (nb % 10) + '0';
+        nb /= 10;
+    }
+    return (result);
 }

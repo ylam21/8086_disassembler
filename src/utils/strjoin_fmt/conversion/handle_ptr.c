@@ -11,7 +11,7 @@ static u8 *handle_hex_ptr(t_arena *a, va_list args, t_fmt_opt opt, u8 table[16])
     if (!ptr)
     {
         u8 size = strlen("(nil)");
-        str = arena_alloc(a, size + 1);
+        str = arena_alloc(a, size);
         if (!str)
         {
             return NULL;
@@ -35,7 +35,7 @@ static u8 *handle_hex_ptr(t_arena *a, va_list args, t_fmt_opt opt, u8 table[16])
         }
     }
 
-    str = arena_alloc(a, digit_count + 3);
+    str = arena_alloc(a, digit_count + 2);
     if (!str)
     {
         return NULL;
@@ -50,7 +50,6 @@ static u8 *handle_hex_ptr(t_arena *a, va_list args, t_fmt_opt opt, u8 table[16])
         str[2 + i] = buffer[digit_count - 1 - i];
         i++;
     }
-    str[2 + digit_count] = '\0';
 
     if (opt.width > 0)
     {

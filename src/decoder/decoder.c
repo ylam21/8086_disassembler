@@ -1,10 +1,9 @@
 #include "decoder.h"
 
-u8 *table_reg_w_zero[] = {"al", "cl", "dl", "bl", "ah", "ch", "dh", "bh"};
-u8 *table_reg_w_one[]  = {"ax", "cx", "dx", "bx", "sp", "bp", "si", "di"};
-u8 *table_mem_address_calc[] = {"bx + si", "bx + di", "bp + si", "bp + di", "si", "di", "bp", "bx"};
-u8 *table_sreg[] = {"es", "cs", "ss", "ds"};
-u8 table_seg_override[4] = "";
+u8 *table_reg_w_zero[8] = {"al", "cl", "dl", "bl", "ah", "ch", "dh", "bh"};
+u8 *table_reg_w_one[8]  = {"ax", "cx", "dx", "bx", "sp", "bp", "si", "di"};
+u8 *table_mem_address_calc[8] = {"bx + si", "bx + di", "bp + si", "bp + di", "si", "di", "bp", "bx"};
+u8 *table_sreg[4] = {"es", "cs", "ss", "ds"};
 
 static u8 *decode_reg(u8 REG, u8 W)
 {
@@ -263,7 +262,7 @@ u8 handle_daa_das_aaa_aas(t_ctx *ctx)
     return 1;
 }
 
-u8 handle_seg_override(t_ctx *ctx)
+u8 handle_segment_override(t_ctx *ctx)
 {
     ctx->seg_prefix = (ctx->b[0] >> 3) & 0x3;
     return 1;
@@ -310,7 +309,7 @@ u8 fmt_imm_to_acc(t_ctx *ctx)
     }
 }
 
-static u8 fmt_modrm(t_ctx *ctx, u8 mnemonic)
+static u8 fmt_modrm(t_ctx *ctx, u8 *mnemonic)
 {
     u8 D = (ctx->b[0] >> 1) & 0x1;
     u8 W = ctx->b[0] & 0x1;
@@ -480,7 +479,7 @@ u8 fmt_movs_cmps_stos_lods_scas(t_ctx *ctx)
     }
 
     u8 W = opcode & 0x1;
-    char suffix;
+    u8 suffix;
     if (W == 0x0)
     {
         suffix = 'b';
@@ -545,7 +544,7 @@ u8 handle_ret(t_ctx *ctx)
     
     u8 is_far = (opcode >> 3) & 0x1;
     
-    char *mnemonic;
+    u8 *mnemonic;
     if (is_far == 0x0)
     {
         mnemonic = "ret";
@@ -593,7 +592,7 @@ u8 fmt_les_lds_mem16_to_reg16(t_ctx *ctx)
         write_fmt_line(ctx, "lds", operands);
     }
 
-    return match_MODRM_with_offset;
+    return match_MODRM_with_offset(MOD, RM);
 }
 
 u8 fmt_mov_imm_to_mem(t_ctx *ctx)
@@ -730,6 +729,259 @@ u8 fmt_esc(t_ctx *ctx)
     u8 *operands = strjoin_fmt(ctx->a, "0x%02X, %s", ext_opcode, rm_field);
     
     write_fmt_line(ctx, "esc", operands);
+
+    return match_MODRM_with_offset(MOD, RM);
+}
+
+u8 fmt_loops(t_ctx *ctx)
+{
+    u8 *mnemonics[4] = {"loopne", "loope", "loop", "jcxz"};
+    u8 idx = ctx->b[0] & 0x3;
+
+    i8 disp = (i8)ctx->b[1];
+    u16 target = (u16)(ctx->current_ip + 2 + disp);
+    u8 *operands = strjoin_fmt(ctx->a, "0x%04X", target);
+    
+    write_fmt_line(ctx, mnemonics[idx], operands);
+
+    return 2;
+}
+
+u8 fmt_in_out_dx_to_acc(t_ctx *ctx)
+{
+    u8 *mnemonics[2] = {"in", "out"};
+    u8 is_out = (ctx->b[0] >> 1) & 0x1;    
+
+    u8 W = ctx->b[0] & 0x1;
+    u8 *field_REG;
+    if (W == 0x0)
+    {
+        field_REG = "al";
+    }
+    else
+    {
+        field_REG = "ax";
+    }
+
+    u8 *operands;
+    if (is_out)
+    {
+        operands = strjoin_fmt(ctx->a, "dx, %s", field_REG);
+    }
+    else
+    {
+        operands = strjoin_fmt(ctx->a, "%s, dx", field_REG);
+    }
+
+    write_fmt_line(ctx, mnemonics[is_out], operands);
+
+    return 1;
+}
+
+u8 fmt_in_out_imm8_to_acc(t_ctx *ctx)
+{
+    u8 opcode = ctx->b[0];
+    u8 W = opcode & 0x1;
+    u8 is_out = (opcode >> 1) & 0x1; 
+
+    u8 *acc_str;
+    if (W == 0x0)    
+    {
+        acc_str = "al";
+    }
+    else
+    {
+        acc_str = "ax";
+    }
+
+    u8 *port_str = strjoin_fmt(ctx->a, "0x%02X", ctx->b[1]);
+    
+    u8 *operands;
+    if (is_out)
+    {
+        operands = strjoin_fmt(ctx->a, "%s, %s", port_str, acc_str);
+        write_fmt_line(ctx, "out", operands);
+    }
+    else
+    {
+        operands = strjoin_fmt(ctx->a, "%s, %s", acc_str, port_str);
+        write_fmt_line(ctx, "in", operands);
+    }
+
+    return 2;
+}
+
+u8 fmt_call_jmp_rel(t_ctx *ctx)
+{
+    u8 opcode = ctx->b[0];
+    
+    u8 *mnemonic = "jmp";
+    u8 len;
+    i32 displacement;
+
+    if (opcode == 0xEB)
+    {
+        len = 2;
+        displacement = (i8)ctx->b[1]; 
+    }
+    else
+    {
+        if (opcode == 0xE8)
+        {
+            mnemonic = "call";
+        } 
+        len = 3;
+        displacement = (i16)(ctx->b[1] | (ctx->b[2] << 8));
+    }
+
+    u16 target = (u16)(ctx->current_ip + len + displacement);
+
+    u8 *operands = strjoin_fmt(ctx->a, "0x%04X", target);
+    write_fmt_line(ctx, mnemonic, operands);
+
+    return len;
+}
+
+u8 fmt_jmp_far(t_ctx *ctx)
+{
+    u16 offset = ctx->b[1] | (ctx->b[2] << 8);
+    u16 segment = ctx->b[3] | (ctx->b[4] << 8);
+
+    u8 *operands = strjoin_fmt(ctx->a, "0x%04X:0x%04X", segment, offset);
+    write_fmt_line(ctx, "jmp", operands);
+
+    return 5; 
+}
+
+u8 handle_lock_repne_rep_hlt_cmc_clc_stc_cli_sti_cld_std(t_ctx *ctx)
+{
+    u8 opcode = ctx->b[0];
+    
+    if (opcode == 0xF6 || opcode == 0xF7 || opcode == 0xFE || opcode == 0xFF)
+    {
+        return 0; 
+    }
+
+    u8 *mnemonics[14] = {
+        "lock", "", "repne", "rep",
+        "hlt", "cmc", "", "",  
+        "clc", "stc", "cli", "sti",
+        "cld", "std"
+    };
+
+    u8 idx = opcode & 0xF;
+
+    if (idx == 1 || mnemonics[idx][0] == '\0')
+    {
+        return 0;
+    }
+
+    write_fmt_line_no_operands(ctx, mnemonics[idx]);
+
+    return 1;
+}
+
+u8 fmt_test_not_neg_mul_imul_div_idiv(t_ctx *ctx)
+{
+    u8 *mnemonics[8] = {"test", "", "not", "neg", "mul", "imul", "div", "idiv"};
+
+    u8 W = ctx->b[0] & 0x1;  
+    u8 MOD = (ctx->b[1] >> 6) & 0x3;
+    u8 REG = (ctx->b[1] >> 3) & 0x7; 
+    u8 RM  = ctx->b[1] & 0x7;
+
+    if (REG == 1)
+    {
+        return 0;
+    }
+
+    u8 *field_RM = decode_rm(ctx, RM, MOD, W);
+    u8 current_len = match_MODRM_with_offset(MOD, RM);
+
+    if (REG == 0)
+    {
+        u8 *imm_val;
+        u8 imm_len;
+
+        if (W == 0)
+        {
+            imm_val = strjoin_fmt(ctx->a, "0x%02X", ctx->b[current_len]);
+            imm_len = 1;
+        }
+        else
+        {
+            u16 val = ctx->b[current_len] | (ctx->b[current_len + 1] << 8);
+            imm_val = strjoin_fmt(ctx->a, "0x%04X", val);
+            imm_len = 2;
+        }
+
+        u8 *operands = strjoin_fmt(ctx->a, "%s, %s", field_RM, imm_val);
+        write_fmt_line(ctx, "test", operands);
+        
+        return current_len + imm_len;
+    }
+    
+    else
+    {
+        write_fmt_line(ctx, mnemonics[REG], field_RM);
+        return current_len;
+    }
+}
+
+u8 handle_inc_dec_rm8(t_ctx *ctx)
+{
+    u8 MOD = (ctx->b[1] >> 6) & 0x3;
+    u8 REG = (ctx->b[1] >> 3) & 0x7;
+    u8 RM  = ctx->b[1] & 0x7;
+
+    if (REG > 1) return 0;
+
+    u8 *mnemonics[2] = {"inc", "dec"};
+    
+    u8 W = 0; 
+
+    u8 *field_RM = decode_rm(ctx, RM, MOD, W);
+    
+    if (MOD != 3) 
+    {
+        field_RM = strjoin_fmt(ctx->a, "byte %s", field_RM);
+    }
+
+    write_fmt_line(ctx, mnemonics[REG], field_RM);
+
+    return match_MODRM_with_offset(MOD, RM);
+}
+
+u8 handle_inc_dec_call_jmp_push_16(t_ctx *ctx)
+{
+    u8 MOD = (ctx->b[1] >> 6) & 0x3;
+    u8 REG = (ctx->b[1] >> 3) & 0x7;
+    u8 RM  = ctx->b[1] & 0x7;
+
+    if (REG == 0x7) return 0;
+
+    u8 *mnemonics[8] = {
+        "inc", "dec", "call", "call", "jmp", "jmp", "push", ""
+    };
+
+    u8 W = 0x1;
+
+    u8 *field_RM = decode_rm(ctx, RM, MOD, W);
+    u8 *final_operand = field_RM;
+
+    if (REG == 0x3 || REG == 0x5)
+    {
+        final_operand = strjoin_fmt(ctx->a, "far %s", field_RM);
+    }
+    else if (MOD != 3)
+    {
+        if (REG <= 0x1 || REG == 0x6) 
+        {
+            final_operand = strjoin_fmt(ctx->a, "word %s", field_RM);
+        }
+    }
+
+    write_fmt_line(ctx, mnemonics[REG], final_operand);
 
     return match_MODRM_with_offset(MOD, RM);
 }

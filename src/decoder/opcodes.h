@@ -4,7 +4,6 @@
 #include <stddef.h>
 #include "../arena/arena.h"
 #include "../common.h"
-#include "opcodes.c"
 
 typedef struct
 {
@@ -18,5 +17,6 @@ typedef struct
 
 typedef u8 (*func_ptr)(t_ctx *ctx); 
 
+extern func_ptr META_TABLE[256];
 
 #endif

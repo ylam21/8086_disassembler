@@ -1,5 +1,4 @@
 #include "strjoin_fmt.h"
-#include "specifier_table.c"
 
 static t_fmt_opt parse_options(u8 **fmt)
 {
@@ -37,7 +36,7 @@ static t_fmt_opt parse_options(u8 **fmt)
 
 u8 *strjoin_fmt(t_arena *a, u8 *fmt, ...)
 {
-    u8 *result = &a->buffer[a->idx];
+    u8 *result = (u8 *)a->buffer + a->idx;
 
     va_list args;
     va_start(args, fmt);

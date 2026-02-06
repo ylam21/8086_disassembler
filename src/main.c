@@ -15,7 +15,7 @@ u8 is_op_prefix(u8 opcode)
             opcode == 0x3E);
 }
 
-i32 main(i32 argc, u8 **argv)
+int main(int argc, char **argv)
 {
     if (argc != 2)
     {
@@ -23,9 +23,9 @@ i32 main(i32 argc, u8 **argv)
         return (EXIT_FAILURE);
     }
 
-    const char *filename = argv[1];
+    char *filename = argv[1];
 
-    int fd_in = open(filename, O_RDONLY);
+    i32 fd_in = open(filename, O_RDONLY);
     if (fd_in == -1)
     {
         perror(filename);
@@ -33,25 +33,24 @@ i32 main(i32 argc, u8 **argv)
     }
 
     u8 buffer[1024];
-    ssize_t read_bytes = read(fd_in, buffer, 1024);
+    i64 read_bytes = read(fd_in, buffer, 1024);
     close(fd_in);
     if (read_bytes == -1)
     {
         return (EXIT_FAILURE);
     }
-    buffer[read_bytes] = '\0';
 
-    printf("Read %lu bytes from: `%s`\n", read_bytes, filename);
+    printf("Read %lu bytes from: \"%s\"\n", read_bytes, filename);
 
-    char const *filename_out = "out.asm";
-    int fd_out = open(filename_out, O_WRONLY | O_CREAT | O_TRUNC, 0777);
+    char *filename_out = "out.asm";
+    i32 fd_out = open(filename_out, O_WRONLY | O_CREAT | O_TRUNC, 0777);
     if (fd_out == -1)
     {
         printf("Error: Cannot create a file\n");
         return (EXIT_FAILURE);
     }
 
-    write_file_header(fd_out);
+    write(fd_out, FILE_HEADER, strlen(FILE_HEADER));
     if (read_bytes == 0)
     {
         printf("Nothing to decode\n");
@@ -60,22 +59,22 @@ i32 main(i32 argc, u8 **argv)
     t_arena *a = arena_create(LIFE_ARENA_SIZE);
     if (!a)
     {
-        return 1;
+        return (EXIT_FAILURE);
     }
-
-    u64 offset = 0;
+    
     u8 opcode;
+    u8 offset = 0;
     t_ctx ctx = 
     {
         .a = a,
         .b = buffer,
-        .fd = filename_out,
+        .fd = fd_out,
         .current_ip = offset,
-        .seg_prefix = 0
+        .seg_prefix = 0xFF
     };
-
+    
     u64 i = 0;
-    while (i < read_bytes)
+    while (i < (u64)read_bytes)
     {
         ctx.b = &buffer[i];
         opcode = ctx.b[0];
@@ -95,13 +94,13 @@ i32 main(i32 argc, u8 **argv)
         }
         else
         {
-            printf("Error: Infinite loop\n");
+            printf("Error: Wrong Instruction Code detected. Opcode is followed with a byte which value is not supported\n");
             break;
         }
     }
 
     close(fd_out);
-    printf("Output written to: `%s`\n",filename_out);
+    printf("Output written to: \"%s\"\n",filename_out);
 
     return (EXIT_SUCCESS);
 }

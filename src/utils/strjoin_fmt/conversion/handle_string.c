@@ -7,10 +7,15 @@ u8 *handle_string(t_arena *a, va_list args, t_fmt_opt opt)
     {
         if (opt.is_conditional)
         {
-            return (u8 *)"";
+            u8 *empty = arena_alloc(a, 1);
+            if (empty)
+            {
+                empty[0] = '\0';
+            }
+            return empty;
         }
         u8 size = strlen("(null)");
-        str = arena_alloc(a, size + 1);
+        str = arena_alloc(a, size);
         if (!str)
         {
             return NULL;
@@ -35,6 +40,10 @@ u8 *handle_string(t_arena *a, va_list args, t_fmt_opt opt)
     }
     else
     {
-        return str;
+        u64 len = strlen(str);
+        u8 *result = arena_alloc(a, len);
+        if (!result) return NULL;
+        memcpy(result, str, len);
+        return result;
     }
 }

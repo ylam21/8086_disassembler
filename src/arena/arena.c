@@ -29,7 +29,7 @@ static u64 align_forward(u64 ptr, u64 align)
 
 void  *arena_alloc(t_arena *a, u64 size)
 {
-    size_t align = sizeof(void *);
+    size_t align = 1;
 
     if (!a || size == 0)
     {
