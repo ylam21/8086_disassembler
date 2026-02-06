@@ -8,31 +8,35 @@ u8 *handle_string(t_arena *a, va_list args, t_fmt_opt opt)
     {
         if (opt.is_conditional)
         {
-            return NULL;
+            return NULL; 
         }
         str = (u8 *)"(null)";
     }
 
+    u64 len = strlen((char *)str);
+    u64 needed_size = len;
+
     if (opt.is_conditional)
     {
-        if (str[0] == '\0')
+        if (len == 0 || str[0] == '\0')
         {
             return NULL;
         }
-        return strjoin_fmt(a, "%s:", str);
+        needed_size += 1;
     }
 
-    if (opt.width != 0)
+    u8 *result = arena_alloc(a, needed_size);
+    if (!result)
     {
-        return apply_padding(a, str, opt);
+        return NULL;
     }
-    else
+
+    memcpy(result, str, len);
+
+    if (opt.is_conditional)
     {
-        u64 len = strlen((char *)str);
-        u8 *result = arena_alloc(a, len);
-        if (!result) return NULL;
-        
-        memcpy(result, str, len);
-        return result;
+        result[len] = ':';
     }
+
+    return result;
 }

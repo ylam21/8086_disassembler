@@ -27,15 +27,6 @@ static u8 *decode_rm(t_ctx *ctx, u8 RM, u8 MOD, u8 W)
         prefix = table_sreg[ctx->seg_prefix];
     }
    
-    if (prefix)
-    {
-        prefix = strjoin_fmt(ctx->a, "%s:", prefix);
-    }
-    else
-    {
-        prefix = (u8 *)"";
-    }
-
     if (MOD == 0x0 && RM == 0x6)
     {
         /* DIRECT ADDRESS */
@@ -443,7 +434,7 @@ u8 fmt_mov_mem_to_reg(t_ctx *ctx)
         prefix_str = (u8 *)"ds";
     }
 
-    u8 *mem_op = strjoin_fmt(ctx->a, "%s:[0x%04X]", prefix_str, addr);
+    u8 *mem_op = strjoin_fmt(ctx->a, "%s[0x%04X]", prefix_str, addr);
     
     u8 *reg_op;
     
@@ -856,7 +847,7 @@ u8 fmt_jmp_far(t_ctx *ctx)
     u16 offset = ctx->b[1] | (ctx->b[2] << 8);
     u16 segment = ctx->b[3] | (ctx->b[4] << 8);
 
-    u8 *operands = strjoin_fmt(ctx->a, "0x%04X:0x%04X", segment, offset);
+    u8 *operands = strjoin_fmt(ctx->a, "0x%04X0x%04X", segment, offset);
     write_fmt_line(ctx, "jmp", operands);
 
     return 5; 
