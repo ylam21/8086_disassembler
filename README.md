@@ -25,3 +25,7 @@ The disassembled output will be written to `out.asm` file in the current directo
 ```sh
 bin/decode8086 examples/listing_0037_single_register_mov
 ```
+*(Example output)*<br>
+bits 16
+
+mov cx, bx
