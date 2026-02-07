@@ -50,13 +50,16 @@ int main(int argc, char **argv)
         return (EXIT_FAILURE);
     }
 
-    write(fd_out, FILE_HEADER, strlen(FILE_HEADER));
     if (read_bytes == 0)
     {
         printf("Nothing to decode\n");
+        close(fd_out);
+        return (EXIT_SUCCESS);
     }
 
-    t_arena *a = arena_create(LIFE_ARENA_SIZE);
+    write(fd_out, "bits 16\n\n", 10);
+
+    t_arena *a = arena_create(1024);
     if (!a)
     {
         return (EXIT_FAILURE);
@@ -94,13 +97,13 @@ int main(int argc, char **argv)
         }
         else
         {
-            printf("Error: Wrong Instruction Code detected. Opcode is followed with a byte which value is not supported\n");
+            printf("Error: Wrong instruction code detected. Opcode is followed with a byte which value is not supported\n");
             break;
         }
     }
 
     close(fd_out);
     printf("Output written to: \"%s\"\n",filename_out);
-
+    arena_destroy(a);
     return (EXIT_SUCCESS);
 }

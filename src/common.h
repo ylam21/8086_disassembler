@@ -2,9 +2,6 @@
 #define COMMON_H
 
 #define PROGRAM_PATH "bin/decode8086"
-#define FILE_HEADER "bits 16\n\n"
-#define LIFE_ARENA_SIZE 1024
-#define OFFSET_OPCODE_NOT_USED 1u
 #define ACC_BYTE "al"
 #define ACC_WORD "ax"
 

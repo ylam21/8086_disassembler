@@ -106,7 +106,7 @@ static u8 *decode_imm_to_reg(t_ctx *ctx, u8 W, u8 data_lo, u8 data_hi)
 
 u8 opcode_not_used(t_ctx *ctx)
 {
-    return OFFSET_OPCODE_NOT_USED;
+    return 1;
 }
 
 
