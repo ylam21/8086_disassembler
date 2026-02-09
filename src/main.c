@@ -57,7 +57,8 @@ int main(int argc, char **argv)
         return (EXIT_SUCCESS);
     }
 
-    write(fd_out, "bits 16\n\n", 10);
+    u8 *header = "bits 16\n\n";
+    write(fd_out, header, strlen(header));
 
     t_arena *a = arena_create(1024);
     if (!a)
